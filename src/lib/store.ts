@@ -92,7 +92,16 @@ export const saveDb = (state: DbState) => {
 };
 
 export const resetDb = () => {
+  localStorage.removeItem(DB_KEY);
   saveDb(getInitialState());
+};
+
+export const resetIdentityOnly = () => {
+  const db = getDb();
+  db.myIdentityId = null;
+  db.myIdentityName = null;
+  db.myIdentityAvatar = null;
+  saveDb(db);
 };
 
 // React hook to use DB

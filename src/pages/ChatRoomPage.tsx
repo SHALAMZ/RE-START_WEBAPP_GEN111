@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useDb, sendChatMessage, endChat } from '../lib/store';
+import { getAvatarForUser } from '../lib/avatars';
 import { ChevronLeft, MoreHorizontal, AlertTriangle, UserX } from 'lucide-react';
 
 export default function ChatRoomPage() {
@@ -28,8 +29,9 @@ export default function ChatRoomPage() {
     );
   }
 
-  const otherUserId = chat.participantIds.find(id => id !== db.myIdentityId);
-  const otherUserName = chat.participantNames[otherUserId!] || 'ผู้ใช้ที่ไม่รู้จัก';
+  const otherUserId = chat.participantIds.find(id => id !== db.myIdentityId) || '';
+  const otherUserName = chat.participantNames[otherUserId] || 'ผู้ใช้ที่ไม่รู้จัก';
+  const otherAvatar = getAvatarForUser(db, otherUserId, otherUserName);
   
   const messages = db.messages.filter(m => m.chatId === chatId).sort((a, b) => a.createdAt - b.createdAt);
 
@@ -51,10 +53,19 @@ export default function ChatRoomPage() {
     <div className="animate-fade-in flex flex-col" style={{ height: 'calc(100vh - 80px)', margin: 'calc(-1 * var(--spacing-md))', padding: 'var(--spacing-md)' }}>
       <header className="flex justify-between items-center mb-md" style={{ backgroundColor: 'var(--color-bg)', paddingBottom: 'var(--spacing-sm)', borderBottom: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 10 }}>
         <button className="btn btn-ghost" style={{ padding: '8px' }} onClick={() => navigate('/chats')}>
-          <ChevronLeft size={24} /> กลับ
+          <ChevronLeft size={24} />
         </button>
         
-        <h3 style={{ fontSize: '1.1rem', margin: 0 }} onClick={() => navigate(`/user/${otherUserId}`)}>{otherUserName}</h3>
+        <div 
+          className="flex items-center gap-sm" 
+          style={{ cursor: 'pointer' }} 
+          onClick={() => navigate(`/user/${otherUserId}`)}
+        >
+          <div className="avatar-bubble" style={{ width: '34px', height: '34px' }}>
+            <img src={otherAvatar} alt={otherUserName} />
+          </div>
+          <h3 style={{ fontSize: '1.05rem', margin: 0 }}>{otherUserName}</h3>
+        </div>
         
         <div style={{ position: 'relative' }}>
           <button className="btn btn-ghost" style={{ padding: '8px' }} onClick={() => setShowOptions(!showOptions)}>
@@ -86,9 +97,16 @@ export default function ChatRoomPage() {
           return (
             <div key={msg.id} style={{ 
               display: 'flex', 
+              alignItems: 'flex-end',
               justifyContent: isMe ? 'flex-end' : 'flex-start',
+              gap: '6px',
               marginBottom: '4px'
             }}>
+              {!isMe && (
+                <div className="avatar-bubble avatar-bubble-sm" style={{ width: '28px', height: '28px', flexShrink: 0 }}>
+                  <img src={otherAvatar} alt={otherUserName} />
+                </div>
+              )}
               <div style={{
                 maxWidth: '75%',
                 padding: '10px 14px',

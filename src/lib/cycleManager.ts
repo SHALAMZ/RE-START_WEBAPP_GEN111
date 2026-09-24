@@ -4,6 +4,12 @@ import { getDb, resetDb, initCycleIfNeeded } from './store';
 export const CYCLE_HOURS = 48;
 export const CYCLE_MS = CYCLE_HOURS * 60 * 60 * 1000;
 
+export const forceExpireCycle = () => {
+  resetDb();
+  initCycleIfNeeded();
+  return true;
+};
+
 export const checkCycleAndReset = () => {
   const db = getDb();
   if (!db.cycleStartTime) return false;
