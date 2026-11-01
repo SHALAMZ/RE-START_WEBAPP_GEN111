@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { type ReactionType, toggleReaction } from '../lib/store';
+import { type ReactionType, toggleReaction, useDb } from '../lib/store';
 
 interface ReactionOption {
   type: ReactionType;
@@ -15,13 +15,16 @@ const REACTIONS: ReactionOption[] = [
 
 interface ReactionPickerProps {
   postId: string;
-  myReaction: ReactionType | null;
+  myReactions: ReactionType[];
   reactionCounts: Record<ReactionType, number>;
 }
 
-export default function ReactionPicker({ postId, myReaction, reactionCounts }: ReactionPickerProps) {
+export default function ReactionPicker({ postId, myReactions, reactionCounts }: ReactionPickerProps) {
   const [open, setOpen] = useState(false);
   const [hoveredReaction, setHoveredReaction] = useState<ReactionType | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const db = useDb();
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -57,10 +60,24 @@ export default function ReactionPicker({ postId, myReaction, reactionCounts }: R
     closeTimer.current = setTimeout(() => setOpen(false), 300);
   }, []);
 
+  const applyReaction = async (type: ReactionType) => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await toggleReaction(postId, type);
+      await db.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'บันทึกปฏิกิริยาไม่สำเร็จ');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleReactionClick = (e: React.MouseEvent | React.TouchEvent, type: ReactionType) => {
     e.stopPropagation();
-    toggleReaction(postId, type);
     setOpen(false);
+    void applyReaction(type);
   };
 
   const handleMainClick = (e: React.MouseEvent) => {
@@ -68,8 +85,8 @@ export default function ReactionPicker({ postId, myReaction, reactionCounts }: R
     // On desktop, single click toggles heart; on mobile, single tap closes menu if open
     if (!open) {
       // Quick tap = toggle the previously selected or default ❤️
-      const current = myReaction || '❤️';
-      toggleReaction(postId, current);
+      const current = myReactions[0] || '❤️';
+      void applyReaction(current);
     } else {
       setOpen(false);
     }
@@ -119,7 +136,7 @@ export default function ReactionPicker({ postId, myReaction, reactionCounts }: R
                   transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)',
                   transform: hoveredReaction === type ? 'translateY(-4px)' : 'none',
                   display: 'block',
-                  filter: myReaction === type ? 'drop-shadow(0 0 4px rgba(100,200,100,0.8))' : 'none',
+                  filter: myReactions.includes(type) ? 'drop-shadow(0 0 4px rgba(100,200,100,0.8))' : 'none',
                 }}
               >
                 {type}
@@ -148,6 +165,7 @@ export default function ReactionPicker({ postId, myReaction, reactionCounts }: R
         onClick={handleMainClick}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        disabled={saving}
         style={{
           background: 'none',
           border: 'none',
@@ -157,17 +175,18 @@ export default function ReactionPicker({ postId, myReaction, reactionCounts }: R
           alignItems: 'center',
           gap: '4px',
           fontSize: '1.1rem',
-          color: myReaction ? 'var(--color-primary)' : 'var(--color-text-muted)',
+          color: myReactions.length > 0 ? 'var(--color-primary)' : 'var(--color-text-muted)',
           transition: 'transform 0.1s',
         }}
       >
-        <span style={{ transition: 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: myReaction ? 'scale(1.15)' : 'scale(1)' }}>
-          {myReaction || '🤍'}
+        <span style={{ transition: 'transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)', transform: myReactions.length > 0 ? 'scale(1.15)' : 'scale(1)' }}>
+          {myReactions[0] || '🤍'}
         </span>
         {totalCount > 0 && (
           <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{totalCount}</span>
         )}
       </button>
+      {error && <span role="alert" className="text-muted" style={{ fontSize: '0.7rem', color: 'var(--color-danger)' }}>{error}</span>}
     </div>
   );
 }

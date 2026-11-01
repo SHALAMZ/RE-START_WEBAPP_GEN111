@@ -1,34 +1,27 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDb, resetDb, resetIdentityOnly } from '../lib/store';
-import { useCycleTimer, formatTimeLeft, forceExpireCycle } from '../lib/cycleManager';
-import { RefreshCw, UserMinus, Clock } from 'lucide-react';
+import { useDb } from '../lib/store';
+import { useCycleTimer, formatTimeLeft } from '../lib/cycleManager';
+import { UserMinus } from 'lucide-react';
 
 export default function MePage() {
   const db = useDb();
   const { timeLeft } = useCycleTimer();
   const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
 
   const myPosts = db.posts.filter(p => p.authorId === db.myIdentityId);
   const myComments = db.comments.filter(c => c.authorId === db.myIdentityId);
 
-  const handleResetIdentity = () => {
+  const handleResetIdentity = async () => {
     if (window.confirm('คุณต้องการเปลี่ยนตัวตนใหม่ใช่หรือไม่? ระบบจะพาไปหน้าสร้างโปรไฟล์ทันที')) {
-      resetIdentityOnly();
-      navigate('/');
-    }
-  };
-
-  const handleForceExpire = () => {
-    if (window.confirm('ต้องการจำลองหมดเวลา 48 ชม. ใช่หรือไม่? ข้อมูลกระดานและตัวตนจะถูกรีเซ็ตใหม่ทั้งหมด')) {
-      forceExpireCycle();
-      navigate('/');
-    }
-  };
-
-  const handleResetAll = () => {
-    if (window.confirm('คุณต้องการรีเซ็ตข้อมูลทั้งหมดและสร้างโปรไฟล์ใหม่ใช่หรือไม่?')) {
-      resetDb();
-      navigate('/');
+      setError(null);
+      try {
+        await db.resetIdentity();
+        navigate('/');
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : 'เปลี่ยนตัวตนไม่สำเร็จ กรุณาลองอีกครั้ง');
+      }
     }
   };
 
@@ -62,6 +55,8 @@ export default function MePage() {
         </div>
       </div>
 
+      {error && <p className="text-muted mb-md" role="alert" style={{ color: 'var(--color-danger)' }}>{error}</p>}
+
       <h3 className="mb-md" style={{ fontSize: '1.1rem' }}>กิจกรรมในรอบนี้</h3>
       
       {myPosts.length === 0 && myComments.length === 0 ? (
@@ -94,23 +89,6 @@ export default function MePage() {
         </p>
       </div>
       
-      {/* Simulation / Reset Tools */}
-      <div className="mt-xl text-center flex flex-col items-center gap-sm">
-        <button 
-          className="btn btn-ghost flex items-center gap-xs" 
-          style={{ fontSize: '0.8rem', color: 'var(--color-primary)' }} 
-          onClick={handleForceExpire}
-        >
-          <Clock size={14} /> [ทดสอบ] จำลองหมดเวลา 48 ชม. (เริ่มรอบใหม่)
-        </button>
-        <button 
-          className="btn btn-ghost flex items-center gap-xs" 
-          style={{ fontSize: '0.75rem', opacity: 0.6 }} 
-          onClick={handleResetAll}
-        >
-          <RefreshCw size={12} /> รีเซ็ตข้อมูลทั้งหมด
-        </button>
-      </div>
     </div>
   );
 }

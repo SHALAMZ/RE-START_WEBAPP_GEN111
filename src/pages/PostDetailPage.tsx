@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useDb, type ReactionType, createComment, deletePost, deleteComment } from '../lib/store';
 import { ChevronLeft, MoreHorizontal, Trash2, AlertTriangle, CornerDownRight } from 'lucide-react';
 import ReactionPicker from '../components/ReactionPicker';
+import { promptForReportDetails } from '../lib/reportPrompt';
 
 interface CommentItemProps {
   comment: ReturnType<typeof useDb>['comments'][0];
@@ -103,6 +104,9 @@ export default function PostDetailPage() {
   const [commentText, setCommentText] = useState('');
   const [showOptions, setShowOptions] = useState(false);
   const [replyTo, setReplyTo] = useState<{ id: string; name: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const post = db.posts.find(p => p.id === postId);
   
@@ -122,27 +126,63 @@ export default function PostDetailPage() {
 
   const reactionCounts: Record<ReactionType, number> = { '❤️': 0, '🌱': 0, '✨': 0, '🤍': 0 };
   db.reactions.filter(r => r.postId === postId).forEach(r => { reactionCounts[r.type] = (reactionCounts[r.type] || 0) + 1; });
-  const myReaction = db.reactions.find(r => r.postId === postId && r.authorId === db.myIdentityId)?.type ?? null;
+  const myReactions = db.reactions
+    .filter(r => r.postId === postId && r.authorId === db.myIdentityId)
+    .map(r => r.type);
   const totalComments = db.comments.filter(c => c.postId === postId).length;
 
-  const submitComment = () => {
-    if (commentText.trim()) {
-      createComment(postId!, commentText.trim(), replyTo?.id ?? null);
+  const submitComment = async () => {
+    if (!commentText.trim() || saving) return;
+    setSaving(true);
+    setActionError(null);
+    try {
+      await createComment(postId!, commentText.trim(), replyTo?.id ?? null);
+      await db.refresh();
       setCommentText('');
       setReplyTo(null);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'ส่งความคิดเห็นไม่สำเร็จ');
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDeletePost = () => {
+  const handleDeletePost = async () => {
     if (window.confirm('คุณต้องการลบโพสต์นี้ใช่หรือไม่?')) {
-      deletePost(post.id);
-      navigate('/');
+      setActionError(null);
+      try {
+        await deletePost(post.id);
+        await db.refresh();
+        navigate('/');
+      } catch (cause) {
+        setActionError(cause instanceof Error ? cause.message : 'ลบโพสต์ไม่สำเร็จ');
+      }
     }
   };
 
-  const handleDeleteComment = (commentId: string) => {
+  const handleDeleteComment = async (commentId: string) => {
     if (window.confirm('ลบความคิดเห็นนี้ใช่ไหม?')) {
-      deleteComment(commentId);
+      setActionError(null);
+      try {
+        await deleteComment(commentId);
+        await db.refresh();
+      } catch (cause) {
+        setActionError(cause instanceof Error ? cause.message : 'ลบความคิดเห็นไม่สำเร็จ');
+      }
+    }
+  };
+
+  const handleReportPost = async () => {
+    setActionError(null);
+    setReportSubmitted(false);
+    try {
+      const details = promptForReportDetails();
+      if (!details) return;
+      await db.report('post', post.id, details.category, details.reason);
+      setReportSubmitted(true);
+      setShowOptions(false);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'ส่งรายงานไม่สำเร็จ');
     }
   };
 
@@ -170,7 +210,7 @@ export default function PostDetailPage() {
                   <Trash2 size={16} /> ลบโพสต์
                 </button>
               ) : (
-                <button className="btn btn-ghost flex items-center gap-sm" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => { alert('รายงานโพสต์แล้ว'); setShowOptions(false); }}>
+                <button className="btn btn-ghost flex items-center gap-sm" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={handleReportPost}>
                   <AlertTriangle size={16} /> รายงาน
                 </button>
               )}
@@ -196,7 +236,7 @@ export default function PostDetailPage() {
         <p style={{ marginBottom: '20px', fontSize: '1.05rem', whiteSpace: 'pre-wrap', lineHeight: 1.7 }}>{post.content}</p>
 
         <div>
-          <ReactionPicker postId={post.id} myReaction={myReaction} reactionCounts={reactionCounts} />
+          <ReactionPicker postId={post.id} myReactions={myReactions} reactionCounts={reactionCounts} />
           {Object.entries(reactionCounts).some(([, c]) => c > 0) && (
             <div className="flex flex-wrap gap-sm mt-md">
               {(Object.entries(reactionCounts) as [ReactionType, number][]).filter(([, c]) => c > 0).map(([type, count]) => (
@@ -210,6 +250,8 @@ export default function PostDetailPage() {
       </div>
 
       {/* Comments */}
+      {actionError && <p className="text-muted mb-md" role="alert" style={{ color: 'var(--color-danger)' }}>{actionError}</p>}
+      {reportSubmitted && <p className="text-muted mb-md" role="status">บันทึกรายงานแล้ว ขอบคุณที่ช่วยดูแลชุมชน</p>}
       <div style={{ flex: 1, overflow: 'auto', paddingBottom: '100px' }}>
         <h3 style={{ fontSize: '1rem', marginBottom: '12px' }}>ความคิดเห็น ({totalComments})</h3>
         
@@ -267,6 +309,7 @@ export default function PostDetailPage() {
             placeholder={replyTo ? `ตอบกลับ ${replyTo.name}...` : 'เขียนความคิดเห็น...'}
             value={commentText}
             onChange={e => setCommentText(e.target.value)}
+            maxLength={1000}
             onKeyDown={e => e.key === 'Enter' && submitComment()}
             autoFocus={!!replyTo}
           />
@@ -274,9 +317,9 @@ export default function PostDetailPage() {
             className="btn btn-primary"
             style={{ padding: '8px 14px', borderRadius: '999px', fontSize: '0.9rem', flexShrink: 0 }}
             onClick={submitComment}
-            disabled={!commentText.trim()}
+            disabled={!commentText.trim() || saving}
           >
-            ส่ง
+            {saving ? 'กำลังส่ง...' : 'ส่ง'}
           </button>
         </div>
       </div>

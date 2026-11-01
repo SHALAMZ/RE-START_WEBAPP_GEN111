@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useDb, sendChatMessage, endChat } from '../lib/store';
 import { getAvatarForUser } from '../lib/avatars';
 import { ChevronLeft, MoreHorizontal, AlertTriangle, UserX } from 'lucide-react';
+import { promptForReportDetails } from '../lib/reportPrompt';
 
 export default function ChatRoomPage() {
   const { chatId } = useParams();
@@ -11,6 +12,9 @@ export default function ChatRoomPage() {
   
   const [message, setMessage] = useState('');
   const [showOptions, setShowOptions] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const chat = db.chats.find(c => c.id === chatId);
@@ -35,17 +39,47 @@ export default function ChatRoomPage() {
   
   const messages = db.messages.filter(m => m.chatId === chatId).sort((a, b) => a.createdAt - b.createdAt);
 
-  const handleSend = () => {
-    if (message.trim()) {
-      sendChatMessage(chatId!, message.trim());
+  const handleSend = async () => {
+    if (!message.trim() || sending || !chatId) return;
+    setSending(true);
+    setActionError(null);
+    try {
+      await sendChatMessage(chatId, message.trim());
+      await db.refresh();
       setMessage('');
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'ส่งข้อความไม่สำเร็จ');
+    } finally {
+      setSending(false);
     }
   };
 
-  const handleEndChat = () => {
+  const handleEndChat = async () => {
     if (window.confirm('คุณต้องการจบการสนทนาและลบประวัติใช่หรือไม่?')) {
-      endChat(chatId!);
-      navigate('/chats');
+      if (!chatId) return;
+      setActionError(null);
+      try {
+        await endChat(chatId);
+        await db.refresh();
+        navigate('/chats');
+      } catch (cause) {
+        setActionError(cause instanceof Error ? cause.message : 'จบการสนทนาไม่สำเร็จ');
+      }
+    }
+  };
+
+  const handleReportChat = async () => {
+    if (!chatId) return;
+    setActionError(null);
+    setReportSubmitted(false);
+    try {
+      const details = promptForReportDetails();
+      if (!details) return;
+      await db.report('chat', chatId, details.category, details.reason);
+      setReportSubmitted(true);
+      setShowOptions(false);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'ส่งรายงานไม่สำเร็จ');
     }
   };
 
@@ -77,7 +111,7 @@ export default function ChatRoomPage() {
               <button className="btn btn-ghost text-danger flex items-center gap-sm" style={{ width: '100%', justifyContent: 'flex-start', color: 'var(--color-danger)' }} onClick={handleEndChat}>
                 <UserX size={16} /> จบการสนทนา
               </button>
-              <button className="btn btn-ghost flex items-center gap-sm mt-xs" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={() => { alert('รายงานผู้ใช้แล้ว'); setShowOptions(false); }}>
+              <button className="btn btn-ghost flex items-center gap-sm mt-xs" style={{ width: '100%', justifyContent: 'flex-start' }} onClick={handleReportChat}>
                 <AlertTriangle size={16} /> รายงาน
               </button>
             </div>
@@ -85,6 +119,8 @@ export default function ChatRoomPage() {
         </div>
       </header>
 
+      {actionError && <p className="text-muted mb-md" role="alert" style={{ color: 'var(--color-danger)' }}>{actionError}</p>}
+      {reportSubmitted && <p className="text-muted mb-md" role="status">บันทึกรายงานแล้ว ขอบคุณที่ช่วยดูแลชุมชน</p>}
       <div className="messages-area flex-1 flex flex-col gap-sm" style={{ overflowY: 'auto', paddingBottom: '80px' }}>
         {messages.length === 0 && (
           <div className="empty-state text-center text-muted mt-lg">
@@ -136,6 +172,7 @@ export default function ChatRoomPage() {
             placeholder="พิมพ์ข้อความ..." 
             value={message}
             onChange={e => setMessage(e.target.value)}
+            maxLength={2000}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
             style={{ padding: '12px' }}
           />
@@ -143,9 +180,9 @@ export default function ChatRoomPage() {
             className="btn btn-primary" 
             style={{ padding: '0 20px', borderRadius: 'var(--radius-lg)' }}
             onClick={handleSend}
-            disabled={!message.trim()}
+            disabled={!message.trim() || sending}
           >
-            ส่ง
+            {sending ? 'กำลังส่ง...' : 'ส่ง'}
           </button>
         </div>
       </div>

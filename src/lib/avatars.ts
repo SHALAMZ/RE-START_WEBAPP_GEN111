@@ -19,6 +19,18 @@ export const AVATARS = [
   avatar8,
 ];
 
+export const getAvatarForKey = (avatarKey: string): string | null => {
+  const match = /^avatar([1-8])$/.exec(avatarKey);
+  if (!match) return null;
+  return AVATARS[Number(match[1]) - 1] ?? null;
+};
+
+export const getAvatarKey = (avatarUrl: string): string => {
+  const index = AVATARS.indexOf(avatarUrl);
+  if (index < 0) throw new Error('Select one of the available avatars.');
+  return `avatar${index + 1}`;
+};
+
 const KNOWN_NAMES_MAP: Record<string, string> = {
   'หมีน้อย': avatar1,
   'หมาโกลด์': avatar2,

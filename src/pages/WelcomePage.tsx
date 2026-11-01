@@ -1,23 +1,30 @@
 import { useState } from 'react';
-import { setMyIdentity, getDb } from '../lib/store';
-import { seedMockData } from '../lib/seedData';
+import { setMyIdentity, useDb } from '../lib/store';
 import { Sparkles, AlertTriangle } from 'lucide-react';
 
 import logoText from '../assets/logo-text.png';
 import logoIcon from '../assets/logo-icon.png';
 
-import { AVATARS } from '../lib/avatars';
+import { AVATARS, getAvatarKey } from '../lib/avatars';
 
 export default function WelcomePage() {
   const [name, setName] = useState('');
   const [avatar, setAvatar] = useState(AVATARS[0]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const db = useDb();
 
-  const handleSubmit = () => {
-    if (name.trim()) {
-      setMyIdentity(name.trim(), avatar);
-      // Seed demo data so the board isn't empty on first visit
-      const db = getDb();
-      seedMockData(db.myIdentityId!, db.myIdentityAvatar);
+  const handleSubmit = async () => {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await setMyIdentity(name.trim(), getAvatarKey(avatar));
+      await db.refresh();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'บันทึกตัวตนไม่สำเร็จ กรุณาลองอีกครั้ง');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -68,13 +75,15 @@ export default function WelcomePage() {
           </p>
         </div>
 
+        {error && <p className="text-muted mb-md" role="alert" style={{ color: 'var(--color-danger)' }}>{error}</p>}
+
         <button 
           className="btn btn-primary flex items-center justify-center gap-sm" 
           style={{ width: '100%' }}
           onClick={handleSubmit}
-          disabled={!name.trim()}
+          disabled={!name.trim() || saving}
         >
-          <Sparkles size={18} /> เข้าสู่พื้นที่ปลอดภัย
+          <Sparkles size={18} /> {saving ? 'กำลังบันทึก...' : 'เข้าสู่พื้นที่ปลอดภัย'}
         </button>
       </div>
     </div>

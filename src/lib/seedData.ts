@@ -1,5 +1,3 @@
-import { getDb, saveDb } from './store';
-
 // Import avatar images properly via Vite so paths are correct
 import avatar1 from '../assets/avatars/avatar1.png';
 import avatar2 from '../assets/avatars/avatar2.png';
@@ -9,11 +7,31 @@ import avatar5 from '../assets/avatars/avatar5.png';
 import avatar6 from '../assets/avatars/avatar6.png';
 import avatar8 from '../assets/avatars/avatar8.png';
 
-// Seed mock data for demo/mockup purposes
-// Only runs once when the board is empty
-export const seedMockData = (_myId: string, _myAvatar: string | null) => {
-  const db = getDb();
-  if (db.posts.length > 0) return; // Already has data
+export interface DevelopmentSeedData {
+  posts: Array<{
+    id: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    authorAvatar: string;
+    createdAt: number;
+  }>;
+  comments: Array<{
+    id: string;
+    postId: string;
+    content: string;
+    authorId: string;
+    authorName: string;
+    authorAvatar: string;
+    createdAt: number;
+  }>;
+  reactions: Array<{ id: string; postId: string; authorId: string; type: '❤️' | '🌱' | '✨' | '🤍' }>;
+}
+
+export const getDevelopmentSeed = (): DevelopmentSeedData => {
+  if (!import.meta.env.DEV) {
+    throw new Error('Mock seed data is available only in development.');
+  }
 
   const u1 = { id: 'mock_u1', name: 'หมีน้อย',  avatar: avatar1 };
   const u2 = { id: 'mock_u2', name: 'เต่าซัน',   avatar: avatar3 };
@@ -25,7 +43,7 @@ export const seedMockData = (_myId: string, _myAvatar: string | null) => {
 
   const now = Date.now();
 
-  db.posts = [
+  const posts = [
     {
       id: 'mock_p1',
       content: 'วันนี้รู้สึกหมดไฟมากเลย ส่งงานไม่ทัน นอนไม่หลับ\nอยากได้รับกำลังใจจากทุกคนหน่อยนะ 😔',
@@ -58,7 +76,7 @@ export const seedMockData = (_myId: string, _myAvatar: string | null) => {
     },
   ];
 
-  db.comments = [
+  const comments = [
     { id: 'mock_c1', postId: 'mock_p1', content: 'อยู่เคียงข้างนะ ค่อยๆ ไปก็ได้ 🤍', authorId: u2.id, authorName: u2.name, authorAvatar: u2.avatar, createdAt: now - 1000 * 60 * 18 },
     { id: 'mock_c2', postId: 'mock_p1', content: 'เข้าใจเลย เราก็เป็นแบบนี้เหมือนกัน ✨', authorId: u3.id, authorName: u3.name, authorAvatar: u3.avatar, createdAt: now - 1000 * 60 * 12 },
     { id: 'mock_c3', postId: 'mock_p2', content: 'ความรู้สึกนี้ถูกต้องมาก ไม่ต้องรีบหาคำตอบนะ', authorId: u1.id, authorName: u1.name, authorAvatar: u1.avatar, createdAt: now - 1000 * 60 * 50 },
@@ -68,7 +86,7 @@ export const seedMockData = (_myId: string, _myAvatar: string | null) => {
     { id: 'mock_c7', postId: 'mock_p5', content: 'ขอบคุณมากเลย ต้องการคำนี้มากเลยวันนี้ 🌱', authorId: u1.id, authorName: u1.name, authorAvatar: u1.avatar, createdAt: now - 1000 * 60 * 185 },
   ];
 
-  db.reactions = [
+  const reactions: DevelopmentSeedData['reactions'] = [
     { id: 'mock_r1', postId: 'mock_p1', authorId: u2.id, type: '❤️' },
     { id: 'mock_r2', postId: 'mock_p1', authorId: u3.id, type: '🤍' },
     { id: 'mock_r3', postId: 'mock_p1', authorId: u4.id, type: '✨' },
@@ -83,5 +101,5 @@ export const seedMockData = (_myId: string, _myAvatar: string | null) => {
     { id: 'mock_r12', postId: 'mock_p5', authorId: u7.id, type: '❤️' },
   ];
 
-  saveDb(db);
+  return { posts, comments, reactions };
 };

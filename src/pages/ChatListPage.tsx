@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { useDb } from '../lib/store';
+import { type Chat, useDb } from '../lib/store';
 import { getAvatarForUser } from '../lib/avatars';
 
 export default function ChatListPage() {
@@ -10,8 +10,8 @@ export default function ChatListPage() {
   const myChats = db.chats.filter(c => c.participantIds.includes(db.myIdentityId!))
                           .sort((a, b) => b.updatedAt - a.updatedAt);
 
-  const getOtherParticipant = (chat: any) => {
-    const otherId = chat.participantIds.find((id: string) => id !== db.myIdentityId) || '';
+  const getOtherParticipant = (chat: Chat) => {
+    const otherId = chat.participantIds.find((id) => id !== db.myIdentityId) || '';
     const otherName = chat.participantNames[otherId] || 'ผู้ใช้ที่ไม่รู้จัก';
     const avatar = getAvatarForUser(db, otherId, otherName);
     return { id: otherId, name: otherName, avatar };

@@ -85,7 +85,9 @@ export default function BoardPage() {
             const postComments = db.comments.filter(c => c.postId === post.id);
             const reactionCounts: Record<ReactionType, number> = { '❤️': 0, '🌱': 0, '✨': 0, '🤍': 0 };
             db.reactions.filter(r => r.postId === post.id).forEach(r => { reactionCounts[r.type] = (reactionCounts[r.type] || 0) + 1; });
-            const myReaction = db.reactions.find(r => r.postId === post.id && r.authorId === db.myIdentityId)?.type ?? null;
+            const myReactions = db.reactions
+              .filter(r => r.postId === post.id && r.authorId === db.myIdentityId)
+              .map(r => r.type);
 
             return (
               <div
@@ -126,7 +128,7 @@ export default function BoardPage() {
                 {/* Reaction + Comment count */}
                 <div className="flex items-center justify-between" style={{ marginBottom: postComments.length > 0 ? '10px' : 0 }}>
                   <div onClick={(e) => e.stopPropagation()}>
-                    <ReactionPicker postId={post.id} myReaction={myReaction} reactionCounts={reactionCounts} />
+                    <ReactionPicker postId={post.id} myReactions={myReactions} reactionCounts={reactionCounts} />
                   </div>
                   <button
                     className="flex items-center gap-xs"
